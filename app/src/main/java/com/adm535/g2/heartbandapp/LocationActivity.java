@@ -24,6 +24,9 @@ public class LocationActivity extends AppCompatActivity {
             @Override
             public void onMapReady(GoogleMap googleMap) {
                 map = googleMap;
+
+                //TODO: Obtener posicion
+                //TODO: Obtener direccion local
             }
         });
     }
