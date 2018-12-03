@@ -1,10 +1,8 @@
 package com.adm535.g2.heartbandapp;
 
 import android.content.Intent;
-import android.graphics.Color;
-import android.graphics.DashPathEffect;
+import android.graphics.Paint;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,17 +10,14 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
 
-import com.androidplot.util.PixelUtils;
-import com.androidplot.xy.CatmullRomInterpolator;
-import com.androidplot.xy.LineAndPointFormatter;
+import com.androidplot.util.Redrawer;
+import com.androidplot.xy.AdvancedLineAndPointRenderer;
+import com.androidplot.xy.BoundaryMode;
 import com.androidplot.xy.SimpleXYSeries;
-import com.androidplot.xy.XYGraphWidget;
 import com.androidplot.xy.XYPlot;
 import com.androidplot.xy.XYSeries;
 
-import java.text.FieldPosition;
-import java.text.Format;
-import java.text.ParsePosition;
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 
 public class ECGFragment extends Fragment {
@@ -30,6 +25,8 @@ public class ECGFragment extends Fragment {
     private XYPlot plot;
     private Button locButton;
     private TextView bpmText;
+
+    private Redrawer redrawer;
 
     public ECGFragment() {
         // Required empty public constructor
@@ -52,51 +49,177 @@ public class ECGFragment extends Fragment {
         locButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent intent = new Intent(getActivity(),LocationActivity.class);
+                Intent intent = new Intent(getActivity(), LocationActivity.class);
                 startActivity(intent);
             }
         });
 
-        final Number[] domainLabels = {1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 16, 18};
-        Number[] series1Numbers = {1, 4, 2, 8, 4, 16, 8, 32, 16, 64};
-        Number[] series2Numbers = {5, 2, 10, 5, 20, 10, 40, 20, 80, 40};
+        ECGModel ecgSeries = new ECGModel(100, 50);
 
-        XYSeries series1 = new SimpleXYSeries(
-                Arrays.asList(series1Numbers), SimpleXYSeries.ArrayFormat.Y_VALS_ONLY, "Series 1");
-        XYSeries series2 = new SimpleXYSeries(
-                Arrays.asList(series2Numbers), SimpleXYSeries.ArrayFormat.Y_VALS_ONLY, "Series 2");
+        // add a new series' to the xyplot:
 
-        LineAndPointFormatter series1Format = new LineAndPointFormatter(Color.RED, Color.GREEN, Color.BLUE, null);
-        LineAndPointFormatter series2Format = new LineAndPointFormatter(Color.CYAN, Color.MAGENTA, Color.YELLOW, null);
-        series1Format.setLegendIconEnabled(false);
-        series2Format.setLegendIconEnabled(false);
+        MyFadeFormatter formatter = new MyFadeFormatter(2000);
+        formatter.setLegendIconEnabled(false);
+        plot.addSeries(ecgSeries, formatter);
+        plot.setRangeBoundaries(0, 10, BoundaryMode.FIXED.FIXED);
+        plot.setDomainBoundaries(0, 100, BoundaryMode.FIXED);
 
-        series2Format.getLinePaint().setPathEffect(new DashPathEffect(new float[]{
-                PixelUtils.dpToPix(20),
-                PixelUtils.dpToPix(15)
-        }, 0));
+        // reduce the number of range labels
+        plot.setLinesPerRangeLabel(3);
 
-        series1Format.setInterpolationParams(
-                new CatmullRomInterpolator.Params(10, CatmullRomInterpolator.Type.Centripetal));
 
-        series2Format.setInterpolationParams(
-                new CatmullRomInterpolator.Params(10, CatmullRomInterpolator.Type.Centripetal));
+        // start generating ecg data in the background:
+        ecgSeries.start(new WeakReference<>(plot.getRenderer(AdvancedLineAndPointRenderer.class)));
 
-        plot.addSeries(series1, series1Format);
-        plot.addSeries(series2, series2Format);
-
-        plot.getGraph().getLineLabelStyle(XYGraphWidget.Edge.BOTTOM).setFormat(new Format() {
-            @Override
-            public StringBuffer format(Object o, @NonNull StringBuffer stringBuffer, @NonNull FieldPosition fieldPosition) {
-                int i = Math.round(((Number) o).floatValue());
-                return stringBuffer.append(domainLabels[i]);
-            }
-
-            @Override
-            public Object parseObject(String s, @NonNull ParsePosition parsePosition) {
-                return null;
-            }
-        });
+        // set a redraw rate of 30hz and start immediately:
+        redrawer = new Redrawer(plot, 30, true);
         return v;
+    }
+
+    /////////////////////////////////////////////////
+    public static class MyFadeFormatter extends AdvancedLineAndPointRenderer.Formatter {
+
+        private int trailSize;
+
+        public MyFadeFormatter(int trailSize) {
+            this.trailSize = trailSize;
+        }
+
+        @Override
+        public Paint getLinePaint(int thisIndex, int latestIndex, int seriesSize) {
+
+            // offset from the latest index:
+            int offset;
+
+            if (thisIndex > latestIndex) {
+
+                offset = latestIndex + (seriesSize - thisIndex);
+
+            } else {
+
+                offset = latestIndex - thisIndex;
+
+            }
+
+            float scale = 255f / trailSize;
+            int alpha = (int) (255 - (offset * scale));
+            getLinePaint().setAlpha(alpha > 0 ? alpha : 0);
+            return getLinePaint();
+        }
+
+    }
+
+    ////////////////////////////////////////////////
+    public static class ECGModel implements XYSeries {
+
+        private final Number[] data;
+        private final long delayMs;
+        private final int blipInteral;
+        private final Thread thread;
+        private boolean keepRunning;
+        private int latestIndex;
+
+        private WeakReference<AdvancedLineAndPointRenderer> rendererRef;
+        public ECGModel(int size, int updateFreqHz) {
+
+            data = new Number[size];
+
+            for (int i = 0; i < data.length; i++) {
+                data[i] = 0;
+            }
+
+
+            // translate hz into delay (ms):
+            delayMs = 1000 / updateFreqHz;
+
+
+            // add 7 "blips" into the signal:
+            blipInteral = size / 7;
+
+            thread = new Thread(new Runnable() {
+
+                @Override
+                public void run() {
+                    try {
+                        while (keepRunning) {
+                            if (latestIndex >= data.length) {
+                                latestIndex = 0;
+                            }
+
+
+                            // generate some random data:
+                            if (latestIndex % blipInteral == 0) {
+
+                                // insert a "blip" to simulate a heartbeat:
+                                data[latestIndex] = (Math.random() * 10) + 3;
+
+                            } else {
+
+                                // insert a random sample:
+                                data[latestIndex] = Math.random() * 2;
+
+                            }
+
+
+                            if (latestIndex < data.length - 1) {
+
+                                // null out the point immediately following i, to disable
+                                // connecting i and i+1 with a line:
+                                data[latestIndex + 1] = null;
+                            }
+
+
+                            if (rendererRef.get() != null) {
+                                rendererRef.get().setLatestIndex(latestIndex);
+                                Thread.sleep(delayMs);
+                            } else {
+                                keepRunning = false;
+                            }
+                            latestIndex++;
+                        }
+                    } catch (InterruptedException e) {
+                        keepRunning = false;
+                    }
+                }
+            });
+        }
+
+
+        public void start(final WeakReference<AdvancedLineAndPointRenderer> rendererRef) {
+            this.rendererRef = rendererRef;
+            keepRunning = true;
+            thread.start();
+        }
+
+
+        @Override
+        public int size() {
+            return data.length;
+        }
+
+
+        @Override
+        public Number getX(int index) {
+            return index;
+        }
+
+
+        @Override
+        public Number getY(int index) {
+            return data[index];
+        }
+
+
+        @Override
+        public String getTitle() {
+            return "Signal";
+        }
+    }
+
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        redrawer.finish();
     }
 }

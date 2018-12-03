@@ -1,5 +1,7 @@
 package com.adm535.g2.heartbandapp.models;
 
+import com.google.android.gms.maps.model.LatLng;
+
 public class HeartBandData {
     private float[] volts;
     private float[] seconds;
@@ -47,5 +49,9 @@ public class HeartBandData {
 
     public void setLongitude(float longitude) {
         this.longitude = longitude;
+    }
+
+    public LatLng toLatLng() {
+        return new LatLng(getLatitude(), getLongitude());
     }
 }
