@@ -15,7 +15,8 @@
         android:layout_weight="2"
         tools:context=".LocationActivity" />
 
-    <RelativeLayout
+    <LinearLayout
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
@@ -26,38 +27,38 @@
             android:orientation="horizontal"
             android:padding="15dp">
 
-        <TextView
-            android:id="@+id/latitud_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Latitud: "
-            android:layout_weight="1"
-            android:textSize="20sp" />
+            <TextView
+                android:id="@+id/latitud_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Latitud: "
+                android:textSize="20sp" />
 
-        <TextView
-            android:id="@+id/latitud"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0.0000"
-            android:layout_weight="2"
-            android:textSize="20sp"
-            android:paddingRight="2dp"/>
+            <TextView
+                android:id="@+id/latitud"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:paddingRight="2dp"
+                android:text="0.0000"
+                android:textSize="20sp" />
 
-        <TextView
-            android:id="@+id/longitud_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Longitud: "
-            android:layout_weight="1"
-            android:textSize="20sp" />
+            <TextView
+                android:id="@+id/longitud_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Longitud: "
+                android:textSize="20sp" />
 
-        <TextView
-            android:id="@+id/longitud"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0.0000"
-            android:layout_weight="2"
-            android:textSize="20sp" />
+            <TextView
+                android:id="@+id/longitud"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="0.0000"
+                android:textSize="20sp" />
         </LinearLayout>
 
         <TextView
@@ -65,11 +66,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:paddingHorizontal="15dp"
             android:paddingBottom="25dp"
+            android:paddingHorizontal="15dp"
             android:text="Av. Maximo Gomez 72, Santo Domingo 10100"
             android:textSize="22sp" />
 
-    </RelativeLayout>
+    </LinearLayout>
 
 </LinearLayout>
