@@ -1,8 +1,16 @@
 package com.adm535.g2.heartbandapp;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ShapeDrawable;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,14 +25,22 @@ import com.androidplot.xy.SimpleXYSeries;
 import com.androidplot.xy.XYPlot;
 import com.androidplot.xy.XYSeries;
 
+import java.lang.annotation.Documented;
 import java.lang.ref.WeakReference;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.Arrays;
+import java.util.Random;
+import java.util.TimerTask;
 
 public class ECGFragment extends Fragment {
 
     private XYPlot plot;
     private Button locButton;
     private TextView bpmText;
+
+    private Handler handler;
+    Runnable runnable;
 
     private Redrawer redrawer;
 
@@ -35,6 +51,7 @@ public class ECGFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setRetainInstance(true);
     }
 
     @Override
@@ -45,6 +62,7 @@ public class ECGFragment extends Fragment {
         plot = v.findViewById(R.id.plot);
         locButton = v.findViewById(R.id.location_button);
         bpmText = v.findViewById(R.id.bpm_number);
+        final GradientDrawable background = (GradientDrawable) v.findViewById(R.id.linear_layout).getBackground();
 
         locButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -54,7 +72,22 @@ public class ECGFragment extends Fragment {
             }
         });
 
-        ECGModel ecgSeries = new ECGModel(100, 50);
+        ECGModel ecgSeries = new ECGModel(50, 40);
+
+        handler = new Handler();
+
+        runnable = new Runnable() {
+            @Override
+            public void run() {
+                NumberFormat formatter = new DecimalFormat("#0.00");
+                float bpm = (float) Math.random() * 90 + 60;
+                bpmText.setText(formatter.format(bpm));
+                background.setColor(Color.argb(255, 255 % ((int) bpm), 0, 255 - (255 % ((int) bpm))));
+                handler.postDelayed(runnable, 2000);
+            }
+        };
+
+        handler.post(runnable);
 
         // add a new series' to the xyplot:
 
@@ -62,7 +95,7 @@ public class ECGFragment extends Fragment {
         formatter.setLegendIconEnabled(false);
         plot.addSeries(ecgSeries, formatter);
         plot.setRangeBoundaries(0, 10, BoundaryMode.FIXED.FIXED);
-        plot.setDomainBoundaries(0, 100, BoundaryMode.FIXED);
+        plot.setDomainBoundaries(0, 50, BoundaryMode.FIXED);
 
         // reduce the number of range labels
         plot.setLinesPerRangeLabel(3);
@@ -120,6 +153,7 @@ public class ECGFragment extends Fragment {
         private int latestIndex;
 
         private WeakReference<AdvancedLineAndPointRenderer> rendererRef;
+
         public ECGModel(int size, int updateFreqHz) {
 
             data = new Number[size];
@@ -216,10 +250,17 @@ public class ECGFragment extends Fragment {
         }
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        redrawer = new Redrawer(plot, 30, true);
+        handler.post(runnable);
+    }
 
     @Override
     public void onStop() {
         super.onStop();
         redrawer.finish();
+        handler.removeCallbacksAndMessages(runnable);
     }
 }
